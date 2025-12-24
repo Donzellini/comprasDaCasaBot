@@ -1,0 +1,12 @@
+app = "compras-da-casa-bot"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DB_PATH = "/data/compras.db"
+
+[[mounts]]
+  source = "compras_vol"
+  destination = "/data"

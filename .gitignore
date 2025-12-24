@@ -1,0 +1,14 @@
+# Ambientes Virtuais
+venv/
+.venv/
+.venv-lin-312/
+
+# Segredos e Configurações
+.env
+
+# Banco de Dados Local
+database/*.db
+
+# Python Cache
+__pycache__/
+*.py[cod]
