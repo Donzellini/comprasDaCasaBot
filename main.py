@@ -1,5 +1,7 @@
 import os
 import sqlite3
+import time
+
 import telebot
 from datetime import datetime
 from dotenv import load_dotenv
@@ -170,5 +172,11 @@ def clear_db(m):
 
 
 if __name__ == "__main__":
-    print("🚀 Bot Privado Rodando...")
-    bot.polling(non_stop=True)
+    print("🤖 ComprasDaCasaBot Online e aguardando comandos...")
+
+    while True:
+        try:
+            bot.polling(non_stop=True, interval=2, timeout=60)
+        except Exception as e:
+            print(f"⚠️ Erro no polling detectado: {e}. Tentando reconectar em 15s...")
+            time.sleep(15)
