@@ -1,12 +1,29 @@
-app = "compras-da-casa-bot"
-primary_region = "gru"
+app = 'compras-da-casa-bot'
+primary_region = 'gru'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
+  ignorefile = ".dockerignore"
+
+[deploy]
+  strategy = "immediate"
 
 [env]
-  DB_PATH = "/data/compras.db"
+  PORT = "8000"
+  WEBHOOK_URL = "https://compras-da-casa-bot.fly.dev/webhook"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512
 
 [[mounts]]
-  source = "compras_vol"
-  destination = "/data"
+  source = 'compras_vol'
+  destination = '/data'

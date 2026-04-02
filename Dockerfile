@@ -9,4 +9,4 @@ COPY . .
 
 RUN mkdir -p /app/database
 
-CMD ["python", "main.py"]
+CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:8000", "--workers", "1"]
