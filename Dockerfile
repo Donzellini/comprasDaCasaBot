@@ -9,7 +9,9 @@ COPY . .
 
 RUN mkdir -p /app/database
 
-# Inicia servidor Flask com Gunicorn
+# Criar script de inicialização
+RUN echo '#!/bin/sh \n\
+# Inicia servidor Flask com Gunicorn \n\
 exec gunicorn --bind 0.0.0.0:8000 --workers 1 --worker-class sync --timeout 120 main:app' > /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh
