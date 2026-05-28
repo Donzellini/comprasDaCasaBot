@@ -59,6 +59,15 @@ with get_db_connection() as conn:
             data_criacao TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS desejos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item TEXT NOT NULL,
+            pego INTEGER DEFAULT 0,
+            adicionado_por TEXT,
+            data_criacao TEXT
+        )
+    """)
 
 
 # --- EMOJIS DINÂMICOS ---
@@ -89,6 +98,8 @@ def main_menu():
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
     m.add(types.KeyboardButton("📋 Ver Lista"), types.KeyboardButton("🛒 Ver Carrinho"))
     m.add(types.KeyboardButton("🧹 Limpar Comprados"))
+    m.add(types.KeyboardButton("🎁 Ver Desejos"), types.KeyboardButton("💝 Ver Pegos"))
+    m.add(types.KeyboardButton("🗑️ Limpar Desejos"))
     return m
 
 
@@ -102,22 +113,46 @@ def welcome(message):
 @bot.message_handler(func=lambda m: not m.text.startswith('/'))
 def handle_text(m):
     t = m.text.strip()
+    # Compras
     if t == "📋 Ver Lista": return show_list(m)
     if t == "🛒 Ver Carrinho": return show_cart(m)
     if t == "🧹 Limpar Comprados": return clear_db(m)
+    # Desejos
+    if t == "🎁 Ver Desejos": return show_desejos(m)
+    if t == "💝 Ver Pegos": return show_pegos(m)
+    if t == "🗑️ Limpar Desejos": return clear_desejos(m)
 
+    # Processamento de entrada
     agora = datetime.now().isoformat()
+
+    # Verifica se é para adicionar à lista de desejos (prefixo: d, desejo, wish)
+    eh_desejo = False
+    if t.lower().startswith(("d:", "desejo:", "wish:")):
+        eh_desejo = True
+        # Remove o prefixo
+        t = t.split(":", 1)[1].strip()
+
     with get_db_connection() as conn:
         if "," in t:
             itens = [f"{get_emoji(i.strip())} {i.strip().capitalize()}" for i in t.split(',') if i.strip()]
-            conn.executemany("INSERT INTO compras (item, adicionado_por, data_criacao) VALUES (?, ?, ?)",
-                             [(i, m.from_user.first_name, agora) for i in itens])
-            bot.reply_to(m, f"🚀 {len(itens)} itens anotados!")
+            if eh_desejo:
+                conn.executemany("INSERT INTO desejos (item, adicionado_por, data_criacao) VALUES (?, ?, ?)",
+                                 [(i, m.from_user.first_name, agora) for i in itens])
+                bot.reply_to(m, f"🎁 {len(itens)} desejos anotados!")
+            else:
+                conn.executemany("INSERT INTO compras (item, adicionado_por, data_criacao) VALUES (?, ?, ?)",
+                                 [(i, m.from_user.first_name, agora) for i in itens])
+                bot.reply_to(m, f"🚀 {len(itens)} itens anotados!")
         else:
             item = f"{get_emoji(t)} {t.capitalize()}"
-            conn.execute("INSERT INTO compras (item, adicionado_por, data_criacao) VALUES (?, ?, ?)",
-                         (item, m.from_user.first_name, agora))
-            bot.reply_to(m, f"➕ {item} anotado!")
+            if eh_desejo:
+                conn.execute("INSERT INTO desejos (item, adicionado_por, data_criacao) VALUES (?, ?, ?)",
+                             (item, m.from_user.first_name, agora))
+                bot.reply_to(m, f"🎁 {item} anotado!")
+            else:
+                conn.execute("INSERT INTO compras (item, adicionado_por, data_criacao) VALUES (?, ?, ?)",
+                             (item, m.from_user.first_name, agora))
+                bot.reply_to(m, f"➕ {item} anotado!")
 
 
 def show_list(m):
@@ -164,6 +199,53 @@ def clear_db(m):
     with get_db_connection() as conn:
         conn.execute("DELETE FROM compras WHERE comprado = 1")
     bot.reply_to(m, "🧹 Histórico de compras limpo!", reply_markup=main_menu())
+
+
+# --- FUNÇÕES DE DESEJOS ---
+def show_desejos(m):
+    with get_db_connection() as conn:
+        items = conn.execute("SELECT id, item FROM desejos WHERE pego = 0").fetchall()
+    if not items:
+        return bot.send_message(m.chat.id, "✅ Lista de desejos vazia!")
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    for r in items:
+        markup.add(types.InlineKeyboardButton(text=r['item'], callback_data=f"wish_{r['id']}"))
+    bot.send_message(m.chat.id, "🎁 **Desejos:**", reply_markup=markup, parse_mode="Markdown")
+
+
+def show_pegos(m):
+    with get_db_connection() as conn:
+        items = conn.execute("SELECT item FROM desejos WHERE pego = 1").fetchall()
+    if not items:
+        return bot.send_message(m.chat.id, "🎁 Nenhum desejo realizado ainda!")
+
+    res = "💝 **Desejos Realizados:**\n\n" + "\n".join([f"✅ {r['item']}" for r in items])
+    bot.send_message(m.chat.id, res, parse_mode="Markdown")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('wish_'))
+def handle_wish(call):
+    item_id = call.data.split('_')[1]
+    with get_db_connection() as conn:
+        conn.execute("UPDATE desejos SET pego = 1 WHERE id = ?", (item_id,))
+        items = conn.execute("SELECT id, item FROM desejos WHERE pego = 0").fetchall()
+
+    if not items:
+        bot.edit_message_text("🎉 Todos os desejos foram realizados!", call.message.chat.id, call.message.message_id)
+    else:
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for r in items:
+            markup.add(types.InlineKeyboardButton(text=r['item'], callback_data=f"wish_{r['id']}"))
+        bot.edit_message_text("🎁 **Desejos:**", call.message.chat.id, call.message.message_id,
+                              reply_markup=markup, parse_mode="Markdown")
+    bot.answer_callback_query(call.id, "Desejo realizado! 🎉")
+
+
+def clear_desejos(m):
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM desejos WHERE pego = 1")
+    bot.reply_to(m, "🗑️ Desejos realizados foram removidos!", reply_markup=main_menu())
 
 
 # --- WEBHOOK ---
