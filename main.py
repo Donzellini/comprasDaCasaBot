@@ -15,7 +15,7 @@ TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 raw_allowed = os.getenv("ALLOWED_USERS", "")
 ALLOWED_USERS = [int(u.strip()) for u in raw_allowed.split(",") if u.strip()]
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.getenv("BASE_DIR", "/data")
 DB_PATH = os.getenv("DB_PATH", os.path.join(BASE_DIR, "database", "compras.db"))
 
 import telebot
@@ -183,8 +183,8 @@ def inicializar_webhook():
 
     try:
         bot.remove_webhook()
-        bot.set_webhook(url=WEBHOOK_URL)
-        logger.info("✅ Webhook registrado com sucesso.")
+        bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
+        logger.info("✅ Webhook registrado com sucesso. Updates pendentes descartados.")
     except Exception as e:
         logger.error(f"❌ Erro ao registrar webhook: {e}")
 
@@ -219,7 +219,7 @@ def webhook_register():
         return jsonify({"error": "WEBHOOK_URL not configured"}), 400
     try:
         bot.remove_webhook()
-        bot.set_webhook(url=WEBHOOK_URL)
+        bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
         webhook_info = bot.get_webhook_info()
         return jsonify({
             "status": "webhook registered",
